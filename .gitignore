@@ -1,0 +1,17 @@
+# Env & secrets
+.env
+*.env
+!.env.example
+
+# Build artifacts
+/bin/
+/out/
+*.exe
+
+# Go
+vendor/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

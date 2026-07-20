@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans;
+    background-image: radial-gradient(#0a0a0a11 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  * {
+    @apply border-ink;
+  }
+}
+
+@layer components {
+  .nb-card {
+    @apply border-2 border-ink bg-white shadow-brutal;
+  }
+  .nb-btn {
+    @apply inline-flex items-center justify-center gap-2 border-2 border-ink bg-white px-4 py-2
+      font-bold shadow-brutal-sm transition-all
+      hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-brutal
+      active:translate-x-[2px] active:translate-y-[2px] active:shadow-none
+      disabled:opacity-50 disabled:pointer-events-none cursor-pointer select-none;
+  }
+  .nb-btn-primary { @apply bg-brand; }
+  .nb-btn-danger { @apply bg-blaze text-white; }
+  .nb-btn-accent { @apply bg-sky text-white; }
+  .nb-btn-ghost { @apply bg-white; }
+  .nb-input {
+    @apply w-full border-2 border-ink bg-white px-3 py-2 font-medium
+      shadow-brutal-sm outline-none focus:shadow-brutal focus:-translate-y-[1px] transition-all;
+  }
+  .nb-label { @apply block text-sm font-bold uppercase tracking-wide mb-1; }
+  .nb-badge {
+    @apply inline-block border-2 border-ink px-2 py-0.5 text-xs font-bold uppercase shadow-brutal-sm;
+  }
+  .nb-th { @apply border-b-2 border-ink px-3 py-2 text-left text-xs font-bold uppercase tracking-wide; }
+  .nb-td { @apply border-b-2 border-ink/20 px-3 py-2 align-middle; }
+}
