@@ -1,0 +1,82 @@
+# Production stack for a single VPS.
+# Database is external (Supabase) — no local postgres service here.
+# TLS is terminated by Caddy (automatic Let's Encrypt certificates).
+#
+# Usage:
+#   docker compose -f deployments/docker-compose.prod.yml up -d --build
+#
+# Requires a project-root .env (copy from .env.production.example) providing:
+#   DATABASE_URL (Supabase), JWT_SECRET, BOT_SERVICE_TOKEN, TELEGRAM_BOT_TOKEN,
+#   MIDTRANS_SERVER_KEY, CORS_ALLOWED_ORIGINS, API_DOMAIN, ACME_EMAIL, ...
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      APP_ENV: production
+      HTTP_PORT: "8080"
+      # DATABASE_URL comes from .env (Supabase). Do NOT override it here.
+    expose:
+      - "8080"          # internal only; reachable by caddy, not published
+    networks:
+      - internal
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    entrypoint: ["/app/worker"]
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      APP_ENV: production
+    depends_on:
+      - api            # api runs DB migrations on startup
+    networks:
+      - internal
+
+  bot:
+    build:
+      context: ../bot
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      # Reach the API over the internal docker network.
+      BACKEND_URL: http://api:8080
+    depends_on:
+      - api
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file:
+      - ../.env          # provides API_DOMAIN and ACME_EMAIL
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    networks:
+      - internal
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge

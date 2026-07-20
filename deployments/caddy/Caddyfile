@@ -1,0 +1,17 @@
+# Automatic HTTPS (Let's Encrypt) reverse proxy for the Kalia API.
+# API_DOMAIN and ACME_EMAIL are injected from the environment (.env).
+
+{
+    email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+    encode gzip
+
+    # Forward all traffic (admin API, /bot/*, /webhooks/midtrans, /health/*)
+    # to the Fiber app on the internal network.
+    reverse_proxy api:8080 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
