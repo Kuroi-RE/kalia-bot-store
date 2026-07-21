@@ -60,10 +60,11 @@ func (h *BotHandler) Catalog(c *fiber.Ctx) error {
 	return ok(c, fiber.Map{"items": items})
 }
 
-// AvailableAccounts handles GET /bot/accounts — available accounts as a safe
-// public list (label/username only, never secret credentials).
+// AvailableAccounts handles GET /bot/accounts?product_id= — available accounts
+// as a safe public list (label/username only, never secret credentials).
 func (h *BotHandler) AvailableAccounts(c *fiber.Ctx) error {
-	items, err := h.accounts.ListAvailableForBot(c.Context(), 200)
+	productID := int64(c.QueryInt("product_id", 0))
+	items, err := h.accounts.ListAvailableForBot(c.Context(), productID, 500)
 	if err != nil {
 		return respondError(c, err)
 	}

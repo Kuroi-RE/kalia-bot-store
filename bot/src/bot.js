@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { api, ApiError } from './api.js';
 import { rupiah, escapeHTML, humanStatus, payBefore } from './format.js';
 import { mainMenu, buildMainMenu, BTN, RESPONSE_BUTTONS } from './keyboards.js';
+import { renderStyledQR } from './qr.js';
 
 export function createBot() {
   const bot = new Telegraf(config.botToken);
@@ -77,12 +78,12 @@ export function createBot() {
     return ctx.reply(WELCOME, { parse_mode: 'HTML', ...(await currentKeyboard()) });
   }
 
-  // showCatalog lists in-stock accounts grouped by type
-  // (product_name - type - price) as inline buy buttons.
+  // showCatalog lists in-stock products (tiers) as "name - price" buttons.
+  // Tapping one opens a detail view with specs before buying.
   async function showCatalog(ctx) {
     let data;
     try {
-      data = await api.listCatalog();
+      data = await api.listProducts();
     } catch (err) {
       return ctx.reply(`Gagal memuat daftar akun: ${err.message}`, await currentKeyboard());
     }
@@ -90,16 +91,61 @@ export function createBot() {
     if (items.length === 0) {
       return ctx.reply('Stok akun sedang kosong. Silakan cek kembali nanti.', await currentKeyboard());
     }
-    const buttons = items.map((it) => {
-      const label = it.type
-        ? `${it.type} - ${rupiah(it.price)}`
-        : `${it.product_name} - ${rupiah(it.price)}`;
-      return [Markup.button.callback(label, `buytype:${it.product_id}:${it.type || ''}`)];
-    });
+    const buttons = items.map((p) => [
+      Markup.button.callback(`${p.name} - ${rupiah(p.price)}`, `detail:${p.product_id}`),
+    ]);
     return ctx.reply('📦 <b>Pilih akun yang ingin dibeli:</b>', {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard(buttons),
     });
+  }
+
+  // showProductDetail shows a tier's price, stock and spec notes (description),
+  // then one button per available handle so the buyer can pick the exact
+  // account they want.
+  async function showProductDetail(ctx, productId) {
+    let products, accounts;
+    try {
+      [products, accounts] = await Promise.all([
+        api.listProducts(),
+        api.listAvailableAccounts(productId),
+      ]);
+    } catch (err) {
+      return ctx.answerCbQuery(`Gagal memuat detail: ${err.message}`, { show_alert: true });
+    }
+    const p = (products.items || []).find((it) => it.product_id === productId);
+    if (!p) {
+      return ctx.answerCbQuery('Produk tidak tersedia atau stok habis.', { show_alert: true });
+    }
+    await ctx.answerCbQuery();
+
+    let text =
+      `📦 <b>${escapeHTML(p.name)}</b>\n` +
+      `Harga: <b>${rupiah(p.price)}</b>\n` +
+      `Stok: ${p.available} tersedia`;
+    if (p.description && p.description.trim()) {
+      text += `\n\n${escapeHTML(p.description)}`;
+    }
+
+    // One button per available handle (labels only, no secrets). Tapping buys
+    // that specific account.
+    const available = (accounts.items || []).filter((a) => a.product_id === productId);
+    const MAX = 50;
+    const rows = available
+      .slice(0, MAX)
+      .map((a) => [Markup.button.callback(`🛒 ${a.label}`, `buyacc:${a.account_id}`)]);
+
+    if (rows.length) {
+      text += `\n\nPilih akun yang ingin dibeli:`;
+      if (available.length > MAX) {
+        text += `\n<i>(menampilkan ${MAX} dari ${available.length} akun)</i>`;
+      }
+    } else {
+      text += `\n\nStok kosong untuk saat ini.`;
+    }
+    rows.push([Markup.button.callback('⬅️ Kembali', 'catalog')]);
+
+    return ctx.reply(text, { parse_mode: 'HTML', ...Markup.inlineKeyboard(rows) });
   }
 
 
@@ -144,13 +190,15 @@ export function createBot() {
       Markup.button.callback('✅ Konfirmasi Pembayaran', `status:${order.order_ref}`),
     ]);
 
-    // Render the QR: prefer generating a PNG locally from the QRIS payload
-    // (works for every provider, no external image dependency); fall back to a
-    // provider-supplied image URL, then to text.
+    // Render the QR: prefer the branded template frame with our dynamic QRIS
+    // composited in; fall back to a plain QR PNG, then a provider image URL,
+    // then text.
     let photoSent = false;
     if (order.qr_string) {
       try {
-        const png = await QRCode.toBuffer(order.qr_string, { width: 360, margin: 2 });
+        const png = config.qrStyled
+          ? await renderStyledQR(order.qr_string)
+          : await QRCode.toBuffer(order.qr_string, { width: 360, margin: 2 });
         await ctx.replyWithPhoto({ source: png }, { caption, parse_mode: 'HTML', ...statusKb });
         photoSent = true;
       } catch (err) {
@@ -267,11 +315,11 @@ export function createBot() {
     const action = parts[0];
     const arg = parts[1];
     try {
-      if (action === 'buytype') {
-        // buytype:<product_id>:<type> — type may itself contain ':'
-        const type = parts.slice(2).join(':');
-        return startOrder(ctx, { productId: Number(arg), type });
+      if (action === 'catalog') {
+        await ctx.answerCbQuery();
+        return showCatalog(ctx);
       }
+      if (action === 'detail') return showProductDetail(ctx, Number(arg));
       if (action === 'buyacc') return startOrder(ctx, { accountId: Number(arg) });
       if (action === 'buy') return startOrder(ctx, { productId: Number(arg) });
       if (action === 'status') {

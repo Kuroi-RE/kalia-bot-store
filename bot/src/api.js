@@ -39,14 +39,12 @@ async function request(method, path, body) {
 }
 
 export const api = {
-  // GET /bot/products -> { items: [...] }
+  // GET /bot/products -> { items: [{ product_id, name, description, price, available }] }
   listProducts: () => request('GET', '/products'),
 
-  // GET /bot/catalog -> { items: [{ product_id, product_name, type, price, available }] }
-  listCatalog: () => request('GET', '/catalog'),
-
-  // GET /bot/accounts -> { items: [{ account_id, product_id, product_name, price, label }] }
-  listAvailableAccounts: () => request('GET', '/accounts'),
+  // GET /bot/accounts?product_id= -> { items: [{ account_id, product_id, product_name, price, label }] }
+  listAvailableAccounts: (productId) =>
+    request('GET', productId ? `/accounts?product_id=${productId}` : '/accounts'),
 
   // GET /bot/menus -> { items: [...] }
   listMenus: () => request('GET', '/menus'),
@@ -56,14 +54,13 @@ export const api = {
     request('GET', `/responses/${encodeURIComponent(command.replace(/^\//, ''))}`),
 
   // POST /bot/orders -> { order_ref, amount, qr_string, qr_image, expires_at, ... }
-  // opts: { accountId } for a specific account, { productId, type } for any
-  // available account of that type, or { productId } for any of the product.
+  // opts: { productId } to buy any available account of a product (tier), or
+  // { accountId } to buy a specific account.
   createOrder: (telegramUser, opts = {}) =>
     request('POST', '/orders', {
       telegram_user: telegramUser,
       product_id: opts.productId,
       account_id: opts.accountId,
-      type: opts.type,
     }),
 
   // GET /bot/orders/:order_ref -> full order

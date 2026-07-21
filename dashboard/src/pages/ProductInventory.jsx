@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useToast } from '../components/Toast.jsx';
-import { Button, Card, Badge, Modal, Table, Spinner, EmptyState, Input, fmtDate } from '../components/ui.jsx';
+import { Button, Card, Badge, Modal, Table, Spinner, EmptyState, Input, Textarea, fmtDate } from '../components/ui.jsx';
 
 export default function ProductInventory() {
   const { id } = useParams();
@@ -15,6 +15,9 @@ export default function ProductInventory() {
   const [addOpen, setAddOpen] = useState(false);
   const [creds, setCreds] = useState({});
   const [saving, setSaving] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const loadProduct = () => api.getProduct(id).then(setProduct).catch((e) => toast.error(e.message));
   const loadSummary = () => api.inventorySummary(id).then(setSummary).catch(() => {});
@@ -51,6 +54,41 @@ export default function ProductInventory() {
     }
   };
 
+  const submitBulk = async (e) => {
+    e.preventDefault();
+    const keys = (product?.credential_schema || []).map((f) => f.key);
+    if (keys.length === 0) {
+      toast.error('Add a credential schema to this product first.');
+      return;
+    }
+    const lines = bulkText.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      toast.error('Paste at least one account line.');
+      return;
+    }
+    // Each line maps its parts (split on "|", tab or comma) positionally to the
+    // schema field order.
+    const accounts = lines.map((line) => {
+      const parts = line.split(/\s*[|\t]\s*|\s*,\s*/);
+      const credentials = {};
+      keys.forEach((k, i) => { credentials[k] = (parts[i] || '').trim(); });
+      return { credentials };
+    });
+    setBulkSaving(true);
+    try {
+      await api.createAccounts(id, { accounts });
+      toast.success(`${accounts.length} account(s) added`);
+      setBulkOpen(false);
+      setBulkText('');
+      loadSummary();
+      loadAccounts();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const removeAccount = async (a) => {
     if (!confirm(`Delete account #${a.id}?`)) return;
     try {
@@ -72,7 +110,10 @@ export default function ProductInventory() {
           <button className="mb-1 text-sm font-bold underline" onClick={() => navigate('/products')}>← Products</button>
           <h1 className="text-2xl font-bold">{product ? product.name : 'Inventory'}</h1>
         </div>
-        <Button variant="primary" onClick={openAdd}>+ Add Account</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setBulkOpen(true)}>+ Bulk Add</Button>
+          <Button variant="primary" onClick={openAdd}>+ Add Account</Button>
+        </div>
       </div>
 
       {summary && (
@@ -147,6 +188,30 @@ export default function ProductInventory() {
           <div className="flex justify-end gap-2">
             <Button type="button" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Saving…' : 'Add'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal title="Bulk Add Accounts" open={bulkOpen} onClose={() => setBulkOpen(false)}>
+        <form onSubmit={submitBulk} className="space-y-3">
+          <div className="nb-card bg-paper p-3 text-sm">
+            <p className="font-bold">One account per line. Separate fields with <code>|</code> (or a comma/tab), in this order:</p>
+            <p className="mt-1 font-mono text-xs">
+              {(schema.length ? schema.map((f) => f.key) : ['(no schema — add fields on the product first)']).join(' | ')}
+            </p>
+          </div>
+          <Textarea
+            label="Accounts"
+            rows={10}
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+            placeholder={schema.length >= 3
+              ? `merapral | [email protected] | pass123\nmiethril | [email protected] | pass456`
+              : 'value1 | value2 | value3'}
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={() => setBulkOpen(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={bulkSaving}>{bulkSaving ? 'Saving…' : 'Add all'}</Button>
           </div>
         </form>
       </Modal>

@@ -169,11 +169,11 @@ func (s *AccountService) ListCatalogForBot(ctx context.Context) ([]model.BotCata
 	return items, nil
 }
 
-// ListAvailableForBot returns available accounts across active products as a
-// safe public listing (label only — never secret credentials). Used by the bot
-// to show selectable accounts by username.
-func (s *AccountService) ListAvailableForBot(ctx context.Context, limit int) ([]model.BotAccountListing, error) {
-	rows, err := s.accounts.ListAvailableWithProduct(ctx, limit)
+// ListAvailableForBot returns available accounts as a safe public listing
+// (label only — never secret credentials). Used by the bot to show selectable
+// accounts by username. When productID > 0 it is scoped to that tier.
+func (s *AccountService) ListAvailableForBot(ctx context.Context, productID int64, limit int) ([]model.BotAccountListing, error) {
+	rows, err := s.accounts.ListAvailableWithProduct(ctx, productID, limit)
 	if err != nil {
 		return nil, apperr.Internal("could not list available accounts").Wrap(err)
 	}

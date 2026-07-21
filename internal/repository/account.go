@@ -51,19 +51,21 @@ type AvailableAccount struct {
 }
 
 // ListAvailableWithProduct returns AVAILABLE accounts of ACTIVE products,
-// joined with product name and price, ordered for stable display.
-func (r *AccountRepository) ListAvailableWithProduct(ctx context.Context, limit int) ([]AvailableAccount, error) {
-	if limit <= 0 || limit > 200 {
-		limit = 100
+// joined with product name and price, ordered for stable display. When
+// productID > 0 the result is limited to that product (tier).
+func (r *AccountRepository) ListAvailableWithProduct(ctx context.Context, productID int64, limit int) ([]AvailableAccount, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 200
 	}
 	const q = `
 		SELECT a.id, a.product_id, p.name, p.base_price, a.credentials
 		FROM accounts a
 		JOIN products p ON p.id = a.product_id
 		WHERE a.status = 'AVAILABLE' AND p.is_active = TRUE
+		  AND ($1 = 0 OR a.product_id = $1)
 		ORDER BY p.name, a.id
-		LIMIT $1`
-	rows, err := r.db.Query(ctx, q, limit)
+		LIMIT $2`
+	rows, err := r.db.Query(ctx, q, productID, limit)
 	if err != nil {
 		return nil, err
 	}
