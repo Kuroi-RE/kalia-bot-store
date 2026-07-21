@@ -29,6 +29,12 @@ type Config struct {
 
 	Midtrans MidtransConfig
 
+	// PaymentProvider selects the gateway: "midtrans" (default) or "temanqris".
+	PaymentProvider string
+	// QRISStatic is the merchant's static QRIS payload, converted to a dynamic
+	// per-order QRIS when PaymentProvider is "temanqris".
+	QRISStatic string
+
 	// ReservationTTL is how long an account stays RESERVED before cleanup.
 	ReservationTTL time.Duration
 	// PaymentTTL is how long a QRIS charge is valid before it expires.
@@ -90,6 +96,8 @@ func Load() (*Config, error) {
 		ReservationTTL:   getEnvDuration("RESERVATION_TTL", 15*time.Minute),
 		PaymentTTL:       getEnvDuration("PAYMENT_TTL", 15*time.Minute),
 		PaymentMode:      getEnv("PAYMENT_MODE", "midtrans"),
+		PaymentProvider:  getEnv("PAYMENT_PROVIDER", "midtrans"),
+		QRISStatic:       getEnv("QRIS_STATIC_PAYLOAD", ""),
 		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "*"),
 		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
 		Worker: WorkerConfig{

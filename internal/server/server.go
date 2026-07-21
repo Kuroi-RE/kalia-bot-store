@@ -32,13 +32,36 @@ func New(log *slog.Logger, prod bool, corsOrigins string) *fiber.App {
 	return app
 }
 
-// errorHandler is the last-resort handler for panics / unhandled errors.
+// errorHandler is the last-resort handler for panics / unhandled errors and
+// framework errors (e.g. unmatched routes -> 404). It returns an accurate
+// message per status so a missing route doesn't masquerade as a 500; only
+// genuine 5xx are reported with a generic message (no internal detail leaked).
 func errorHandler(log *slog.Logger) fiber.ErrorHandler {
 	return func(c *fiber.Ctx, err error) error {
 		code := fiber.StatusInternalServerError
+		message := "internal server error"
 		if fe, ok := err.(*fiber.Error); ok {
 			code = fe.Code
+			if fe.Message != "" {
+				message = fe.Message
+			}
 		}
+
+		codeStr := "internal"
+		switch {
+		case code == fiber.StatusNotFound:
+			codeStr = "not_found"
+		case code == fiber.StatusMethodNotAllowed:
+			codeStr = "method_not_allowed"
+		case code >= 400 && code < 500:
+			codeStr = "bad_request"
+		}
+		// Never leak internal detail on 5xx.
+		if code >= 500 {
+			codeStr = "internal"
+			message = "internal server error"
+		}
+
 		log.Error("unhandled request error",
 			slog.String("path", c.Path()),
 			slog.String("method", c.Method()),
@@ -46,7 +69,7 @@ func errorHandler(log *slog.Logger) fiber.ErrorHandler {
 			slog.Any("error", err),
 		)
 		return c.Status(code).JSON(fiber.Map{
-			"error": fiber.Map{"code": "internal", "message": "internal server error"},
+			"error": fiber.Map{"code": codeStr, "message": message},
 		})
 	}
 }

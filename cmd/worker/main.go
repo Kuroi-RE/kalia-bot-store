@@ -40,7 +40,13 @@ func main() {
 	defer pool.Close()
 
 	tm := repository.NewTxManager(pool)
-	gateway := payment.NewMidtrans(cfg.Midtrans.ServerKey, cfg.Midtrans.BaseURL, cfg.Midtrans.DefaultAcquirer, nil)
+	gateway := payment.NewGateway(payment.ProviderConfig{
+		Provider:        cfg.PaymentProvider,
+		MidtransKey:     cfg.Midtrans.ServerKey,
+		MidtransBaseURL: cfg.Midtrans.BaseURL,
+		Acquirer:        cfg.Midtrans.DefaultAcquirer,
+		QRISStatic:      cfg.QRISStatic,
+	}, nil)
 	sender := telegram.NewClient(cfg.TelegramBotToken, nil)
 
 	paymentSvc := service.NewPaymentService(tm, gateway, log)

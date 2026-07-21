@@ -36,3 +36,19 @@ export function humanStatus(status) {
       return status || 'Unknown';
   }
 }
+
+// payBefore renders the payment deadline (Jakarta time) with the remaining
+// minutes, e.g. "⏰ Bayar sebelum 14:35 WIB (±5 menit)".
+export function payBefore(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const t = d.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta',
+  });
+  const mins = Math.max(0, Math.round((d.getTime() - Date.now()) / 60000));
+  return `⏰ Bayar sebelum ${t} WIB (±${mins} menit)`;
+}
+

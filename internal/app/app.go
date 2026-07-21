@@ -128,6 +128,7 @@ func (c *Container) registerRoutes() {
 	handler.NewDeliveryHandler(c.services.delivery).Register(api, jwt)
 	handler.NewOrderHandler(c.services.order, c.services.payment).Register(api, jwt)
 	handler.NewSettingsHandler(c.services.settings).Register(api, jwt)
+	handler.NewConfigHandler(c.Gateway.Name(), payment.RequiresManualConfirmation(c.Gateway)).Register(api, jwt)
 
 	// Bot routes protected by the static service token.
 	bot := api.Group("/bot", middleware.BotAuth(c.Cfg.BotServiceToken))

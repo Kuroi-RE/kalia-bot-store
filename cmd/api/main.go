@@ -43,11 +43,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Payment gateway: real Midtrans, or an in-process fake for local dev.
+	// Payment gateway: fake (dev), or the configured provider (midtrans/temanqris).
 	var gateway payment.Gateway
 	if cfg.PaymentFake() {
 		log.Warn("PAYMENT_MODE=fake — using in-process fake payment gateway (DEV ONLY)")
 		gateway = testkit.NewFakeGateway(cfg.Midtrans.ServerKey)
+	} else {
+		gateway = payment.NewGateway(payment.ProviderConfig{
+			Provider:        cfg.PaymentProvider,
+			MidtransKey:     cfg.Midtrans.ServerKey,
+			MidtransBaseURL: cfg.Midtrans.BaseURL,
+			Acquirer:        cfg.Midtrans.DefaultAcquirer,
+			QRISStatic:      cfg.QRISStatic,
+		}, nil)
+		log.Info("payment provider", slog.String("provider", gateway.Name()))
 	}
 
 	container := app.Build(cfg, log, pool, gateway, nil)

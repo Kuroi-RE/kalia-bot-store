@@ -24,8 +24,23 @@ func (h *OrderHandler) Register(r fiber.Router, mw fiber.Handler) {
 	r.Get("/orders", mw, h.List)
 	r.Get("/orders/:id", mw, h.Get)
 	r.Patch("/orders/:id/cancel", mw, h.Cancel)
+	r.Post("/orders/:id/confirm-payment", mw, h.ConfirmPayment)
 	r.Get("/orders/:id/payment", mw, h.OrderPayment)
 	r.Get("/payments/:id", mw, h.Payment)
+}
+
+// ConfirmPayment handles POST /orders/:id/confirm-payment — admin manually
+// confirms a QRIS payment (temanqris provider), settling and delivering it.
+func (h *OrderHandler) ConfirmPayment(c *fiber.Ctx) error {
+	id, err := idParam(c)
+	if err != nil {
+		return respondError(c, err)
+	}
+	confirmed, err := h.payments.ConfirmPayment(c.Context(), id)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return ok(c, fiber.Map{"order_id": id, "confirmed": confirmed})
 }
 
 // List handles GET /orders?status=&limit=&offset=.

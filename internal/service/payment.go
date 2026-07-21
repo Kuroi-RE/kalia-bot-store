@@ -281,6 +281,39 @@ func (s *PaymentService) ForceSettle(ctx context.Context, orderRef string) (bool
 	return newlyPaid, nil
 }
 
+// ConfirmPayment is an admin action that manually marks an order as paid and
+// triggers delivery. Used for the temanqris provider (funds land in the
+// merchant account directly, so settlement is confirmed by a human) and as an
+// admin override. Idempotent: a non-PENDING order is a no-op. Returns whether
+// the order newly became PAID.
+func (s *PaymentService) ConfirmPayment(ctx context.Context, orderID int64) (bool, error) {
+	order, err := repository.NewOrderRepository(s.tx.DB()).GetByID(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return false, apperr.NotFound("order not found")
+		}
+		return false, apperr.Internal("lookup failed").Wrap(err)
+	}
+	if order.Status != model.OrderPending {
+		return false, apperr.Conflict("only PENDING orders can be confirmed (current: " + string(order.Status) + ")")
+	}
+	newlyPaid, err := s.applyTransition(ctx, Notification{
+		OrderRef:          order.OrderRef,
+		TransactionStatus: "settlement",
+		StatusCode:        "200",
+	})
+	if err != nil {
+		return false, err
+	}
+	if newlyPaid && s.delivery != nil {
+		if derr := s.delivery.DeliverOrder(ctx, order.ID); derr != nil {
+			s.log.Error("manual-confirm delivery failed",
+				slog.String("order_ref", order.OrderRef), slog.Any("error", derr))
+		}
+	}
+	return newlyPaid, nil
+}
+
 // mapTransactionStatus maps a Midtrans transaction_status to a payment status.
 func mapTransactionStatus(txnStatus, fraudStatus string) model.PaymentStatus {
 	switch txnStatus {

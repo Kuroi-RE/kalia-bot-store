@@ -98,7 +98,11 @@ export const api = {
   listOrders: (params) => request('GET', `/orders${qs(params)}`),
   getOrder: (id) => request('GET', `/orders/${id}`),
   cancelOrder: (id) => request('PATCH', `/orders/${id}/cancel`),
+  confirmPayment: (id) => request('POST', `/orders/${id}/confirm-payment`),
   orderPayment: (id) => request('GET', `/orders/${id}/payment`),
+
+  // runtime config
+  getConfig: () => request('GET', '/config'),
 
   // deliveries
   listDeliveries: (params) => request('GET', `/deliveries${qs(params)}`),

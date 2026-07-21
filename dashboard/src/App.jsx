@@ -8,6 +8,7 @@ import Products from './pages/Products.jsx';
 import ProductInventory from './pages/ProductInventory.jsx';
 import Telegram from './pages/Telegram.jsx';
 import Orders from './pages/Orders.jsx';
+import Confirmations from './pages/Confirmations.jsx';
 import Deliveries from './pages/Deliveries.jsx';
 import Settings from './pages/Settings.jsx';
 
@@ -34,6 +35,7 @@ function AppRoutes() {
         <Route path="/products/:id/inventory" element={<ProductInventory />} />
         <Route path="/telegram" element={<Telegram />} />
         <Route path="/orders" element={<Orders />} />
+        <Route path="/confirmations" element={<Confirmations />} />
         <Route path="/deliveries" element={<Deliveries />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

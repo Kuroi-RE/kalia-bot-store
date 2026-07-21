@@ -1,7 +1,8 @@
 import { Telegraf, Markup } from 'telegraf';
+import QRCode from 'qrcode';
 import { config } from './config.js';
 import { api, ApiError } from './api.js';
-import { rupiah, escapeHTML, humanStatus } from './format.js';
+import { rupiah, escapeHTML, humanStatus, payBefore } from './format.js';
 import { mainMenu, buildMainMenu, BTN, RESPONSE_BUTTONS } from './keyboards.js';
 
 export function createBot() {
@@ -136,21 +137,32 @@ export function createBot() {
       `Produk: ${escapeHTML(order.product?.name || '')}\n` +
       `Total: <b>${rupiah(order.amount)}</b>\n\n` +
       `Scan QRIS di bawah dengan e-wallet / m-banking untuk membayar.\n` +
+      (order.expires_at ? `${payBefore(order.expires_at)}\n` : '') +
       `${humanStatus(order.status)}`;
 
     const statusKb = Markup.inlineKeyboard([
       Markup.button.callback('✅ Konfirmasi Pembayaran', `status:${order.order_ref}`),
     ]);
 
-    // Try to send the QR as a photo; fall back to text if the image URL can't
-    // be fetched by Telegram (e.g. an unreachable/placeholder URL).
+    // Render the QR: prefer generating a PNG locally from the QRIS payload
+    // (works for every provider, no external image dependency); fall back to a
+    // provider-supplied image URL, then to text.
     let photoSent = false;
-    if (order.qr_image) {
+    if (order.qr_string) {
+      try {
+        const png = await QRCode.toBuffer(order.qr_string, { width: 360, margin: 2 });
+        await ctx.replyWithPhoto({ source: png }, { caption, parse_mode: 'HTML', ...statusKb });
+        photoSent = true;
+      } catch (err) {
+        console.error('QR render failed, falling back:', err.message);
+      }
+    }
+    if (!photoSent && order.qr_image) {
       try {
         await ctx.replyWithPhoto(order.qr_image, { caption, parse_mode: 'HTML', ...statusKb });
         photoSent = true;
       } catch (err) {
-        console.error('QR photo send failed, falling back to text:', err.description || err.message);
+        console.error('QR photo URL failed, falling back to text:', err.description || err.message);
       }
     }
     if (!photoSent) {

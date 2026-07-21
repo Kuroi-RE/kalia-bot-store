@@ -5,6 +5,7 @@ const nav = [
   { to: '/products', label: '📦 Products' },
   { to: '/telegram', label: '💬 Telegram' },
   { to: '/orders', label: '🧾 Orders' },
+  { to: '/confirmations', label: '✅ Confirm Pay' },
   { to: '/deliveries', label: '🚚 Deliveries' },
   { to: '/settings', label: '⚙️ Settings' },
 ];
