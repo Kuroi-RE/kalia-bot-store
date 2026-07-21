@@ -88,6 +88,30 @@ func (s *ProductService) Create(ctx context.Context, in CreateProductInput) (*mo
 	return created, nil
 }
 
+// ListForBot returns active, in-stock products as a public catalog listing
+// (name + description + price + available count). Out-of-stock products are
+// omitted so the bot never offers something that can't be bought.
+func (s *ProductService) ListForBot(ctx context.Context) ([]model.BotProductListing, error) {
+	rows, err := s.products.ListActiveWithAvailability(ctx)
+	if err != nil {
+		return nil, apperr.Internal("could not list products").Wrap(err)
+	}
+	out := make([]model.BotProductListing, 0, len(rows))
+	for _, r := range rows {
+		if r.Available <= 0 {
+			continue
+		}
+		out = append(out, model.BotProductListing{
+			ProductID:   r.ID,
+			Name:        r.Name,
+			Description: r.Description,
+			Price:       r.BasePrice,
+			Available:   r.Available,
+		})
+	}
+	return out, nil
+}
+
 // Get returns a product by id.
 func (s *ProductService) Get(ctx context.Context, id int64) (*model.Product, error) {
 	p, err := s.products.GetByID(ctx, id)

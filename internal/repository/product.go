@@ -97,6 +97,44 @@ func (r *ProductRepository) List(ctx context.Context, params ProductListParams) 
 	return items, total, rows.Err()
 }
 
+// ProductWithStock is a product plus its available account count.
+type ProductWithStock struct {
+	ID          int64
+	Name        string
+	Description string
+	BasePrice   int64
+	Available   int64
+}
+
+// ListActiveWithAvailability returns active products with a count of their
+// AVAILABLE accounts, ordered for stable display.
+func (r *ProductRepository) ListActiveWithAvailability(ctx context.Context) ([]ProductWithStock, error) {
+	const q = `
+		SELECT p.id, p.name, p.description, p.base_price, COALESCE(c.available, 0)
+		FROM products p
+		LEFT JOIN (
+			SELECT product_id, count(*) AS available
+			FROM accounts WHERE status = 'AVAILABLE'
+			GROUP BY product_id
+		) c ON c.product_id = p.id
+		WHERE p.is_active = TRUE
+		ORDER BY p.name, p.id`
+	rows, err := r.db.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ProductWithStock
+	for rows.Next() {
+		var p ProductWithStock
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.BasePrice, &p.Available); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // Update modifies mutable product fields (name, description, price, schema).
 func (r *ProductRepository) Update(ctx context.Context, p *model.Product) (*model.Product, error) {
 	schema, err := p.CredentialSchema.MarshalJSONB()

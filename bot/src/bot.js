@@ -76,11 +76,12 @@ export function createBot() {
     return ctx.reply(WELCOME, { parse_mode: 'HTML', ...(await currentKeyboard()) });
   }
 
-  // showCatalog lists available accounts (by username) as inline buy buttons.
+  // showCatalog lists in-stock products (name - description - price) as inline
+  // buy buttons.
   async function showCatalog(ctx) {
     let data;
     try {
-      data = await api.listAvailableAccounts();
+      data = await api.listProducts();
     } catch (err) {
       return ctx.reply(`Gagal memuat daftar akun: ${err.message}`, await currentKeyboard());
     }
@@ -88,9 +89,12 @@ export function createBot() {
     if (items.length === 0) {
       return ctx.reply('Stok akun sedang kosong. Silakan cek kembali nanti.', await currentKeyboard());
     }
-    const buttons = items.map((a) => [
-      Markup.button.callback(`${a.product_name} - ${a.label}`, `buyacc:${a.account_id}`),
-    ]);
+    const buttons = items.map((p) => {
+      const label = p.description
+        ? `${p.name} - ${p.description} - ${rupiah(p.price)}`
+        : `${p.name} - ${rupiah(p.price)}`;
+      return [Markup.button.callback(label, `buy:${p.product_id}`)];
+    });
     return ctx.reply('📦 <b>Pilih akun yang ingin dibeli:</b>', {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard(buttons),

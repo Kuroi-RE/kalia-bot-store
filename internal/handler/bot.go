@@ -58,15 +58,15 @@ func (h *BotHandler) AvailableAccounts(c *fiber.Ctx) error {
 	return ok(c, fiber.Map{"items": items})
 }
 
-// Products handles GET /bot/products — active products with prices.
+// Products handles GET /bot/products — active, in-stock products with
+// name/description/price for the catalog.
 func (h *BotHandler) Products(c *fiber.Ctx) error {
-	active := true
-	items, _, err := h.products.List(c.Context(), &active, 200, 0)
+	items, err := h.products.ListForBot(c.Context())
 	if err != nil {
 		return respondError(c, err)
 	}
 	if items == nil {
-		items = []model.Product{}
+		items = []model.BotProductListing{}
 	}
 	return ok(c, fiber.Map{"items": items})
 }

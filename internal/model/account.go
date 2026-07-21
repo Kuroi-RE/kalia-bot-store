@@ -38,6 +38,16 @@ type InventorySummary struct {
 	Total     int64 `json:"total"`
 }
 
+// BotProductListing is a public product entry for the bot catalog: name +
+// description + price, with how many accounts are in stock.
+type BotProductListing struct {
+	ProductID   int64  `json:"product_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Price       int64  `json:"price"`
+	Available   int64  `json:"available"`
+}
+
 // BotAccountListing is a public, safe view of an available account for the bot
 // catalog. It intentionally excludes secret credentials (email/password) — only
 // a display label (e.g. the Twitter username) is exposed before purchase.
