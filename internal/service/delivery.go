@@ -184,11 +184,18 @@ func renderCredentials(product *model.Product, order *model.Order, account *mode
 	return sb.String()
 }
 
+// internalCredentialKeys are stored on the account for categorization but are
+// NOT delivered to the customer (e.g. "type" — used only for the catalog).
+var internalCredentialKeys = map[string]bool{"type": true}
+
 func credentialKeyOrder(product *model.Product, creds model.Credentials) []string {
 	seen := map[string]bool{}
 	var keys []string
 	if product != nil {
 		for _, f := range product.CredentialSchema {
+			if internalCredentialKeys[f.Key] {
+				continue
+			}
 			if _, ok := creds[f.Key]; ok {
 				keys = append(keys, f.Key)
 				seen[f.Key] = true
@@ -197,9 +204,10 @@ func credentialKeyOrder(product *model.Product, creds model.Credentials) []strin
 	}
 	var rest []string
 	for k := range creds {
-		if !seen[k] {
-			rest = append(rest, k)
+		if seen[k] || internalCredentialKeys[k] {
+			continue
 		}
+		rest = append(rest, k)
 	}
 	sort.Strings(rest)
 	return append(keys, rest...)

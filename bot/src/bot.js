@@ -77,12 +77,12 @@ export function createBot() {
     return ctx.reply(WELCOME, { parse_mode: 'HTML', ...(await currentKeyboard()) });
   }
 
-  // showCatalog lists in-stock products (name - description - price) as inline
-  // buy buttons.
+  // showCatalog lists in-stock accounts grouped by type
+  // (product_name - type - price) as inline buy buttons.
   async function showCatalog(ctx) {
     let data;
     try {
-      data = await api.listProducts();
+      data = await api.listCatalog();
     } catch (err) {
       return ctx.reply(`Gagal memuat daftar akun: ${err.message}`, await currentKeyboard());
     }
@@ -90,11 +90,11 @@ export function createBot() {
     if (items.length === 0) {
       return ctx.reply('Stok akun sedang kosong. Silakan cek kembali nanti.', await currentKeyboard());
     }
-    const buttons = items.map((p) => {
-      const label = p.description
-        ? `${p.name} - ${p.description} - ${rupiah(p.price)}`
-        : `${p.name} - ${rupiah(p.price)}`;
-      return [Markup.button.callback(label, `buy:${p.product_id}`)];
+    const buttons = items.map((it) => {
+      const label = it.type
+        ? `${it.type} - ${rupiah(it.price)}`
+        : `${it.product_name} - ${rupiah(it.price)}`;
+      return [Markup.button.callback(label, `buytype:${it.product_id}:${it.type || ''}`)];
     });
     return ctx.reply('📦 <b>Pilih akun yang ingin dibeli:</b>', {
       parse_mode: 'HTML',
@@ -263,8 +263,15 @@ export function createBot() {
   // Inline button actions.
   bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data || '';
-    const [action, arg] = data.split(':');
+    const parts = data.split(':');
+    const action = parts[0];
+    const arg = parts[1];
     try {
+      if (action === 'buytype') {
+        // buytype:<product_id>:<type> — type may itself contain ':'
+        const type = parts.slice(2).join(':');
+        return startOrder(ctx, { productId: Number(arg), type });
+      }
       if (action === 'buyacc') return startOrder(ctx, { accountId: Number(arg) });
       if (action === 'buy') return startOrder(ctx, { productId: Number(arg) });
       if (action === 'status') {

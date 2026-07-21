@@ -159,6 +159,16 @@ func (s *AccountService) Summary(ctx context.Context, productID int64) (*model.I
 	return sum, nil
 }
 
+// ListCatalogForBot returns available accounts grouped by product + type for
+// the bot catalog (e.g. "Account - premium - Rp 50.000").
+func (s *AccountService) ListCatalogForBot(ctx context.Context) ([]model.BotCatalogItem, error) {
+	items, err := s.accounts.ListAvailableByType(ctx)
+	if err != nil {
+		return nil, apperr.Internal("could not list catalog").Wrap(err)
+	}
+	return items, nil
+}
+
 // ListAvailableForBot returns available accounts across active products as a
 // safe public listing (label only — never secret credentials). Used by the bot
 // to show selectable accounts by username.

@@ -29,6 +29,7 @@ type createOrderRequest struct {
 	TelegramUser  botUser `json:"telegram_user" validate:"required"`
 	ProductID     int64   `json:"product_id"`
 	AccountID     *int64  `json:"account_id"`
+	Type          *string `json:"type"`
 	PriceOverride *int64  `json:"price_override"`
 }
 
@@ -37,12 +38,26 @@ type createOrderRequest struct {
 func (h *BotHandler) Register(r fiber.Router, orderLimiter fiber.Handler) {
 	r.Get("/products", h.Products)
 	r.Get("/accounts", h.AvailableAccounts)
+	r.Get("/catalog", h.Catalog)
 	if orderLimiter != nil {
 		r.Post("/orders", orderLimiter, h.CreateOrder)
 	} else {
 		r.Post("/orders", h.CreateOrder)
 	}
 	r.Get("/orders/:order_ref", h.GetOrder)
+}
+
+// Catalog handles GET /bot/catalog — available accounts grouped by type
+// (product_name / type / price / available count).
+func (h *BotHandler) Catalog(c *fiber.Ctx) error {
+	items, err := h.accounts.ListCatalogForBot(c.Context())
+	if err != nil {
+		return respondError(c, err)
+	}
+	if items == nil {
+		items = []model.BotCatalogItem{}
+	}
+	return ok(c, fiber.Map{"items": items})
 }
 
 // AvailableAccounts handles GET /bot/accounts — available accounts as a safe
@@ -84,6 +99,7 @@ func (h *BotHandler) CreateOrder(c *fiber.Ctx) error {
 		FirstName:     req.TelegramUser.FirstName,
 		ProductID:     req.ProductID,
 		AccountID:     req.AccountID,
+		Type:          req.Type,
 		PriceOverride: req.PriceOverride,
 	})
 	if err != nil {

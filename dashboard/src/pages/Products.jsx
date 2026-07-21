@@ -4,7 +4,15 @@ import { api } from '../api/client.js';
 import { useToast } from '../components/Toast.jsx';
 import { Button, Card, Input, Textarea, Badge, Modal, Table, Spinner, EmptyState, rupiah } from '../components/ui.jsx';
 
-const emptyForm = { name: '', description: '', base_price: 0, is_active: true, credential_schema: [] };
+const TYPE_FIELD = { key: 'type', label: 'Type', type: 'string', required: true };
+const emptyForm = { name: '', description: '', base_price: 0, is_active: true, credential_schema: [{ ...TYPE_FIELD }] };
+
+// ensureTypeField guarantees a required "type" field exists at the front of the
+// schema (older products created before this rule may lack it).
+function ensureTypeField(schema = []) {
+  const rest = schema.filter((f) => f.key !== 'type');
+  return [{ ...TYPE_FIELD }, ...rest];
+}
 
 function SchemaEditor({ schema, onChange }) {
   const update = (i, patch) => onChange(schema.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
@@ -17,24 +25,37 @@ function SchemaEditor({ schema, onChange }) {
         <span>Credential fields</span>
         <Button type="button" onClick={add} className="px-2 py-0.5 text-xs">+ Field</Button>
       </div>
-      {schema.length === 0 && <p className="text-sm opacity-60">No fields — accounts will store free-form credentials.</p>}
       <div className="space-y-2">
-        {schema.map((f, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 items-center">
-            <input className="nb-input col-span-3" placeholder="key" value={f.key} onChange={(e) => update(i, { key: e.target.value })} />
-            <input className="nb-input col-span-3" placeholder="label" value={f.label} onChange={(e) => update(i, { label: e.target.value })} />
-            <select className="nb-input col-span-3" value={f.type} onChange={(e) => update(i, { type: e.target.value })}>
-              <option value="string">string</option>
-              <option value="secret">secret</option>
-              <option value="url">url</option>
-              <option value="text">text</option>
-            </select>
-            <label className="col-span-2 flex items-center gap-1 text-xs font-bold">
-              <input type="checkbox" checked={!!f.required} onChange={(e) => update(i, { required: e.target.checked })} /> req
-            </label>
-            <button type="button" className="nb-btn nb-btn-danger col-span-1 px-2 py-1" onClick={() => remove(i)}>✕</button>
-          </div>
-        ))}
+        {schema.map((f, i) => {
+          const locked = f.key === 'type';
+          return (
+            <div key={i} className="grid grid-cols-12 gap-2 items-center">
+              <input
+                className="nb-input col-span-3"
+                placeholder="key"
+                value={f.key}
+                disabled={locked}
+                title={locked ? 'The "type" field is required and cannot be renamed or removed.' : undefined}
+                onChange={(e) => update(i, { key: e.target.value })}
+              />
+              <input className="nb-input col-span-3" placeholder="label" value={f.label} onChange={(e) => update(i, { label: e.target.value })} />
+              <select className="nb-input col-span-3" value={f.type} onChange={(e) => update(i, { type: e.target.value })}>
+                <option value="string">string</option>
+                <option value="secret">secret</option>
+                <option value="url">url</option>
+                <option value="text">text</option>
+              </select>
+              <label className="col-span-2 flex items-center gap-1 text-xs font-bold">
+                <input type="checkbox" checked={!!f.required} disabled={locked} onChange={(e) => update(i, { required: e.target.checked })} /> req
+              </label>
+              {locked ? (
+                <span className="col-span-1 text-center text-lg" title="Required field">🔒</span>
+              ) : (
+                <button type="button" className="nb-btn nb-btn-danger col-span-1 px-2 py-1" onClick={() => remove(i)}>✕</button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -68,7 +89,7 @@ export default function Products() {
       description: p.description || '',
       base_price: p.base_price,
       is_active: p.is_active,
-      credential_schema: p.credential_schema || [],
+      credential_schema: ensureTypeField(p.credential_schema || []),
     });
     setModalOpen(true);
   };
@@ -82,7 +103,7 @@ export default function Products() {
         description: form.description,
         base_price: Number(form.base_price),
         is_active: form.is_active,
-        credential_schema: form.credential_schema,
+        credential_schema: ensureTypeField(form.credential_schema),
       };
       if (editing) {
         await api.updateProduct(editing.id, body);

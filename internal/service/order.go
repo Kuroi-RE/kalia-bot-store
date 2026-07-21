@@ -47,8 +47,9 @@ type CreateOrderInput struct {
 	Username      string
 	FirstName     string
 	ProductID     int64
-	AccountID     *int64 // optional: reserve this specific account
-	PriceOverride *int64 // optional per-order price
+	AccountID     *int64  // optional: reserve this specific account
+	Type          *string // optional: reserve any available account of this type
+	PriceOverride *int64  // optional per-order price
 }
 
 // OrderResult is the outcome of creating an order.
@@ -153,10 +154,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (*O
 			return apperr.Internal("could not create order").Wrap(err)
 		}
 
-		// Reserve the account: a specific one if requested, else any available.
+		// Reserve the account: a specific one if requested, else by type, else any.
 		var account *model.Account
 		if in.AccountID != nil {
 			account, err = accounts.ReserveSpecificAvailable(ctx, *in.AccountID, &order.ID, reservedUntil)
+		} else if in.Type != nil {
+			account, err = accounts.ReserveOneAvailableOfType(ctx, product.ID, *in.Type, &order.ID, reservedUntil)
 		} else {
 			account, err = inventory.ReserveInTx(ctx, db, product.ID, &order.ID, reservedUntil)
 		}
@@ -165,7 +168,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, in CreateOrderInput) (*O
 				if in.AccountID != nil {
 					return apperr.Conflict("that account was just taken by someone else")
 				}
-				return apperr.Conflict("out of stock for this product")
+				return apperr.Conflict("out of stock for this option")
 			}
 			return apperr.Internal("could not reserve account").Wrap(err)
 		}

@@ -38,6 +38,16 @@ type InventorySummary struct {
 	Total     int64 `json:"total"`
 }
 
+// BotCatalogItem is a catalog entry grouped by account "type" (e.g. premium),
+// shown to the bot as "ProductName - Type - Price".
+type BotCatalogItem struct {
+	ProductID   int64  `json:"product_id"`
+	ProductName string `json:"product_name"`
+	Type        string `json:"type"`
+	Price       int64  `json:"price"`
+	Available   int64  `json:"available"`
+}
+
 // BotProductListing is a public product entry for the bot catalog: name +
 // description + price, with how many accounts are in stock.
 type BotProductListing struct {

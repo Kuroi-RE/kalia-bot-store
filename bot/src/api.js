@@ -42,6 +42,9 @@ export const api = {
   // GET /bot/products -> { items: [...] }
   listProducts: () => request('GET', '/products'),
 
+  // GET /bot/catalog -> { items: [{ product_id, product_name, type, price, available }] }
+  listCatalog: () => request('GET', '/catalog'),
+
   // GET /bot/accounts -> { items: [{ account_id, product_id, product_name, price, label }] }
   listAvailableAccounts: () => request('GET', '/accounts'),
 
@@ -53,12 +56,14 @@ export const api = {
     request('GET', `/responses/${encodeURIComponent(command.replace(/^\//, ''))}`),
 
   // POST /bot/orders -> { order_ref, amount, qr_string, qr_image, expires_at, ... }
-  // opts: { accountId } to buy a specific account, or { productId } for any.
+  // opts: { accountId } for a specific account, { productId, type } for any
+  // available account of that type, or { productId } for any of the product.
   createOrder: (telegramUser, opts = {}) =>
     request('POST', '/orders', {
       telegram_user: telegramUser,
       product_id: opts.productId,
       account_id: opts.accountId,
+      type: opts.type,
     }),
 
   // GET /bot/orders/:order_ref -> full order

@@ -83,6 +83,59 @@ func (r *AccountRepository) ListAvailableWithProduct(ctx context.Context, limit 
 	return out, rows.Err()
 }
 
+// ListAvailableByType groups AVAILABLE accounts of ACTIVE products by their
+// credential "type" field, returning one row per (product, type) with a count.
+func (r *AccountRepository) ListAvailableByType(ctx context.Context) ([]model.BotCatalogItem, error) {
+	const q = `
+		SELECT a.product_id, p.name, COALESCE(a.credentials->>'type', ''), p.base_price, count(*)
+		FROM accounts a
+		JOIN products p ON p.id = a.product_id
+		WHERE a.status = 'AVAILABLE' AND p.is_active = TRUE
+		GROUP BY a.product_id, p.name, COALESCE(a.credentials->>'type', ''), p.base_price
+		ORDER BY p.name, 3`
+	rows, err := r.db.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.BotCatalogItem
+	for rows.Next() {
+		var it model.BotCatalogItem
+		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.Type, &it.Price, &it.Available); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// ReserveOneAvailableOfType reserves one AVAILABLE account of the given product
+// AND credential type, using FOR UPDATE SKIP LOCKED. An empty accType matches
+// accounts with no "type" field. Returns ErrNoStock when none is available.
+// Must run in a transaction.
+func (r *AccountRepository) ReserveOneAvailableOfType(ctx context.Context, productID int64, accType string, orderID *int64, reservedUntil time.Time) (*model.Account, error) {
+	const sel = `
+		SELECT id FROM accounts
+		WHERE product_id = $1 AND status = 'AVAILABLE' AND COALESCE(credentials->>'type', '') = $2
+		ORDER BY created_at, id
+		LIMIT 1
+		FOR UPDATE SKIP LOCKED`
+	var id int64
+	err := r.db.QueryRow(ctx, sel, productID, accType).Scan(&id)
+	if IsNotFound(err) {
+		return nil, ErrNoStock
+	}
+	if err != nil {
+		return nil, err
+	}
+	const upd = `
+		UPDATE accounts
+		SET status = 'RESERVED', reserved_order_id = $2, reserved_until = $3, updated_at = now()
+		WHERE id = $1
+		RETURNING ` + accountColumns
+	return scanAccount(r.db.QueryRow(ctx, upd, id, orderID, reservedUntil))
+}
+
 // ReserveSpecificAvailable reserves a specific account by id if it is still
 // AVAILABLE, using FOR UPDATE so concurrent buyers of the same account can't
 // both win. Returns ErrNoStock when it is no longer available. Must run in a tx.

@@ -63,6 +63,27 @@ func validateSchema(schema model.CredentialSchema) error {
 	return nil
 }
 
+// ensureTypeField guarantees the schema contains a required "type" field, used
+// to group inventory in the bot catalog. If missing it is prepended; if present
+// it is forced to required so it is always captured when adding accounts.
+func ensureTypeField(schema model.CredentialSchema) model.CredentialSchema {
+	for i := range schema {
+		if strings.EqualFold(strings.TrimSpace(schema[i].Key), "type") {
+			schema[i].Key = "type"
+			schema[i].Required = true
+			if schema[i].Label == "" {
+				schema[i].Label = "Type"
+			}
+			if schema[i].Type == "" {
+				schema[i].Type = "string"
+			}
+			return schema
+		}
+	}
+	typeField := model.CredentialField{Key: "type", Label: "Type", Type: "string", Required: true}
+	return append(model.CredentialSchema{typeField}, schema...)
+}
+
 // Create validates and inserts a new product.
 func (s *ProductService) Create(ctx context.Context, in CreateProductInput) (*model.Product, error) {
 	if strings.TrimSpace(in.Name) == "" {
@@ -71,6 +92,7 @@ func (s *ProductService) Create(ctx context.Context, in CreateProductInput) (*mo
 	if in.BasePrice < 0 {
 		return nil, apperr.BadRequest("base_price must be >= 0")
 	}
+	in.CredentialSchema = ensureTypeField(in.CredentialSchema)
 	if err := validateSchema(in.CredentialSchema); err != nil {
 		return nil, err
 	}
@@ -149,6 +171,7 @@ func (s *ProductService) Update(ctx context.Context, id int64, in UpdateProductI
 	if in.BasePrice < 0 {
 		return nil, apperr.BadRequest("base_price must be >= 0")
 	}
+	in.CredentialSchema = ensureTypeField(in.CredentialSchema)
 	if err := validateSchema(in.CredentialSchema); err != nil {
 		return nil, err
 	}
